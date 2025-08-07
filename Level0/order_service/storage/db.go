@@ -2,6 +2,7 @@ package storage
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -25,6 +26,10 @@ func New(connStr string) (*Storage, error) {
 // Close - корректно закрывает соединение с базой данных.
 func (s *Storage) Close() error {
 	return s.db.Close()
+}
+
+func (s *Storage) GetDb() *sqlx.DB {
+	return s.db
 }
 
 // SaveOrder - сохранить заказ целиком или ничего.
@@ -103,4 +108,47 @@ func (s *Storage) SaveOrder(order *model.Order) error {
 	}
 
 	return nil
+}
+
+// orderQueryResult - структура для получения ответа из SQL запроса.
+type orderQueryResult struct {
+	model.Order
+	model.Delivery
+	model.Payment
+	ItemsJSON []byte `db:"items_json"`
+}
+
+// GetOrderByUID - получить заказ и связанные данные по uid.
+func (s *Storage) GetOrderByUID(db *sqlx.DB, orderUID string) (*model.Order, error) {
+	sqlQuery := `
+        SELECT
+            o.*, d.*, p.*,
+            COALESCE(
+              (SELECT json_agg(i) FROM items i WHERE i.order_uid = o.order_uid),
+              '[]'::json
+            ) AS items_json
+        FROM orders AS o
+        LEFT JOIN deliveries AS d ON o.order_uid = d.order_uid
+        LEFT JOIN payments AS p ON o.order_uid = p.order_uid
+        WHERE o.order_uid = $1`
+
+	var result orderQueryResult
+	if err := db.Get(&result, sqlQuery, orderUID); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, err
+		}
+		return nil, fmt.Errorf("ошибка запроса к БД: %w", err)
+	}
+
+	var items []model.Item
+	if err := json.Unmarshal(result.ItemsJSON, &items); err != nil {
+		return nil, fmt.Errorf("ошибка распаковки JSON для товаров: %w", err)
+	}
+
+	order := &result.Order
+	order.Delivery = result.Delivery
+	order.Payment = result.Payment
+	order.Items = items
+
+	return order, nil
 }

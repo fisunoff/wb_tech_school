@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"order_service/model"
 	"order_service/storage"
 	"os"
 	"path/filepath"
@@ -35,15 +34,18 @@ func main() {
 		}
 	}(db)
 
-	correctData := readData("valid_order.json")
-	data, err := model.SerializeOrder([]byte(correctData))
-	if err != nil {
-		log.Fatalf(err.Error())
-	}
-	err = db.SaveOrder(&data)
-	if err != nil {
-		log.Fatalf(err.Error())
-	}
+	//correctData := readData("valid_order.json")
+	//data, err := model.SerializeOrder([]byte(correctData))
+	//if err != nil {
+	//	log.Fatalf(err.Error())
+	//}
+	//err = db.SaveOrder(&data)
+	//if err != nil {
+	//	log.Fatalf(err.Error())
+	//}
+
+	data, err := db.GetOrderByUID(db.GetDb(), "b563feb7b2b84b6test")
+	fmt.Println(data)
 
 	log.Println("Успешно подключились к базе данных!")
 }
