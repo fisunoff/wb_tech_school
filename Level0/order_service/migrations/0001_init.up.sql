@@ -8,7 +8,7 @@ CREATE TABLE "orders" (
                           "delivery_service" varchar NOT NULL,
                           "shardkey" varchar NOT NULL,
                           "sm_id" int NOT NULL,
-                          "date_created" timestamp NOT NULL,
+                          "date_created" timestamp with time zone NOT NULL,
                           "oof_shard" varchar NOT NULL
 );
 
@@ -55,8 +55,10 @@ CREATE TABLE "items" (
 
 CREATE INDEX ON "items" ("order_uid");
 
-ALTER TABLE "orders" ADD FOREIGN KEY ("order_uid") REFERENCES "deliveries" ("order_uid") ON DELETE CASCADE;
+ALTER TABLE "deliveries" ADD FOREIGN KEY ("order_uid") REFERENCES "orders" ("order_uid") ON DELETE CASCADE;
 
-ALTER TABLE "orders" ADD FOREIGN KEY ("order_uid") REFERENCES "payments" ("order_uid") ON DELETE CASCADE;
+ALTER TABLE "payments" ADD FOREIGN KEY ("order_uid") REFERENCES "orders" ("order_uid") ON DELETE CASCADE;
 
 ALTER TABLE "items" ADD FOREIGN KEY ("order_uid") REFERENCES "orders" ("order_uid") ON DELETE CASCADE;
+
+CREATE INDEX ON "items" ("order_uid");
