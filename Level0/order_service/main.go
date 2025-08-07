@@ -1,26 +1,20 @@
 package main
 
 import (
-	"fmt"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"log"
+	"net/http"
+	"order_service/handlers"
 	"order_service/storage"
-	"os"
-	"path/filepath"
 )
 
-func readData(filename string) []byte {
-	path := filepath.Join("model/testdata", filename)
-	data, err := os.ReadFile(path)
-	if err != nil {
-		fmt.Println(err.Error())
-	}
-	return data
-}
+const PORT = ":8080"
 
 func main() {
 	log.Println("Запускаем сервис...")
 
-	dbURL := "postgres://myuser:mypassword@db:5432/order_service_db?sslmode=disable"
+	dbURL := "postgres://myuser:mypassword@localhost:54320/order_service_db?sslmode=disable"
 
 	db, err := storage.New(dbURL)
 	if err != nil {
@@ -34,18 +28,21 @@ func main() {
 		}
 	}(db)
 
-	//correctData := readData("valid_order.json")
-	//data, err := model.SerializeOrder([]byte(correctData))
-	//if err != nil {
-	//	log.Fatalf(err.Error())
-	//}
-	//err = db.SaveOrder(&data)
-	//if err != nil {
-	//	log.Fatalf(err.Error())
-	//}
+	orderHandler := &handlers.OrderHandler{
+		DB: db,
+	}
 
-	data, err := db.GetOrderByUID(db.GetDb(), "b563feb7b2b84b6test")
-	fmt.Println(data)
+	r := chi.NewRouter()
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
 
-	log.Println("Успешно подключились к базе данных!")
+	r.Get("/order/{order_uid}", orderHandler.GetByUID)
+
+	err = http.ListenAndServe(PORT, r)
+	if err != nil {
+		log.Fatalf("не удалось запустить сервер: %v", err)
+	}
+
+	log.Printf("Сервер запущен на порту %s", PORT)
+
 }

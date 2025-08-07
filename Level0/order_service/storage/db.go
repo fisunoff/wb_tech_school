@@ -119,7 +119,7 @@ type orderQueryResult struct {
 }
 
 // GetOrderByUID - получить заказ и связанные данные по uid.
-func (s *Storage) GetOrderByUID(db *sqlx.DB, orderUID string) (*model.Order, error) {
+func (s *Storage) GetOrderByUID(orderUID string) (*model.Order, error) {
 	sqlQuery := `
         SELECT
             o.*, d.*, p.*,
@@ -133,8 +133,8 @@ func (s *Storage) GetOrderByUID(db *sqlx.DB, orderUID string) (*model.Order, err
         WHERE o.order_uid = $1`
 
 	var result orderQueryResult
-	if err := db.Get(&result, sqlQuery, orderUID); err != nil {
-		if err == sql.ErrNoRows {
+	if err := s.db.Get(&result, sqlQuery, orderUID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, err
 		}
 		return nil, fmt.Errorf("ошибка запроса к БД: %w", err)
