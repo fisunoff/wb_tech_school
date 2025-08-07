@@ -11,7 +11,8 @@ import (
 )
 
 type Storage struct {
-	db *sqlx.DB
+	db    *sqlx.DB
+	cache map[string]*model.Order
 }
 
 // New - подключение к базе.
@@ -20,7 +21,10 @@ func New(connStr string) (*Storage, error) {
 	if err != nil {
 		return nil, fmt.Errorf("не удалось подключиться к базе данных: %w", err)
 	}
-	return &Storage{db: db}, nil
+	return &Storage{
+		db:    db,
+		cache: make(map[string]*model.Order),
+	}, nil
 }
 
 // Close - корректно закрывает соединение с базой данных.
@@ -120,6 +124,11 @@ type orderQueryResult struct {
 
 // GetOrderByUID - получить заказ и связанные данные по uid.
 func (s *Storage) GetOrderByUID(orderUID string) (*model.Order, error) {
+	val, ok := s.cache[orderUID]
+	if ok {
+		return val, nil
+	}
+
 	sqlQuery := `
         SELECT
             o.*, d.*, p.*,
@@ -149,6 +158,8 @@ func (s *Storage) GetOrderByUID(orderUID string) (*model.Order, error) {
 	order.Delivery = result.Delivery
 	order.Payment = result.Payment
 	order.Items = items
+
+	s.cache[orderUID] = order
 
 	return order, nil
 }
