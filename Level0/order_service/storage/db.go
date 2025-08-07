@@ -1,0 +1,106 @@
+package storage
+
+import (
+	"database/sql"
+	"errors"
+	"fmt"
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jmoiron/sqlx"
+	"order_service/model"
+)
+
+type Storage struct {
+	db *sqlx.DB
+}
+
+// New - подключение к базе.
+func New(connStr string) (*Storage, error) {
+	db, err := sqlx.Connect("pgx", connStr)
+	if err != nil {
+		return nil, fmt.Errorf("не удалось подключиться к базе данных: %w", err)
+	}
+	return &Storage{db: db}, nil
+}
+
+// Close - корректно закрывает соединение с базой данных.
+func (s *Storage) Close() error {
+	return s.db.Close()
+}
+
+// SaveOrder - сохранить заказ целиком или ничего.
+func (s *Storage) SaveOrder(order *model.Order) error {
+	// 1. Начинаем транзакцию.
+	tx, err := s.db.Beginx()
+	if err != nil {
+		return fmt.Errorf("не удалось начать транзакцию: %w", err)
+	}
+
+	defer func() {
+		if err := tx.Rollback(); !errors.Is(err, sql.ErrTxDone) {
+			fmt.Printf("ошибка отката транзакции: %v", err)
+		}
+	}()
+
+	_, err = tx.NamedExec(`
+		INSERT INTO orders (
+			order_uid, track_number, entry, locale, internal_signature, customer_id,
+			delivery_service, shardkey, sm_id, date_created, oof_shard
+		) VALUES (
+			:order_uid, :track_number, :entry, :locale, :internal_signature, :customer_id,
+			:delivery_service, :shardkey, :sm_id, :date_created, :oof_shard
+		)
+	`, order)
+	if err != nil {
+		return fmt.Errorf("не удалось сохранить заказ (order): %w", err)
+	}
+
+	dbDelivery := order.Delivery
+	dbDelivery.OrderUID = order.OrderUID
+	_, err = tx.NamedExec(`
+		INSERT INTO deliveries (
+			order_uid, name, phone, zip, city, address, region, email
+		) VALUES (
+			:order_uid, :name, :phone, :zip, :city, :address, :region, :email
+		)
+	`, &dbDelivery)
+	if err != nil {
+		return fmt.Errorf("не удалось сохранить доставку (delivery): %w", err)
+	}
+
+	dbPayment := order.Payment
+	dbPayment.OrderUID = order.OrderUID
+	_, err = tx.NamedExec(`
+		INSERT INTO payments (
+			order_uid, transaction, request_id, currency, provider, amount, payment_dt,
+			bank, delivery_cost, goods_total, custom_fee
+		) VALUES (
+			:order_uid, :transaction, :request_id, :currency, :provider, :amount, :payment_dt,
+			:bank, :delivery_cost, :goods_total, :custom_fee
+		)
+	`, &dbPayment)
+	if err != nil {
+		return fmt.Errorf("не удалось сохранить оплату (payment): %w", err)
+	}
+
+	for _, item := range order.Items {
+		item.OrderUID = order.OrderUID
+		_, err = tx.NamedExec(`
+			INSERT INTO items (
+				order_uid, chrt_id, track_number, price, rid, name, sale, size,
+				total_price, nm_id, brand, status
+			) VALUES (
+				:order_uid, :chrt_id, :track_number, :price, :rid, :name, :sale, :size,
+				:total_price, :nm_id, :brand, :status
+			)
+		`, &item)
+		if err != nil {
+			return fmt.Errorf("не удалось сохранить товар (item) с chrt_id %d: %w", item.ChrtID, err)
+		}
+	}
+
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("не удалось закоммитить транзакцию: %w", err)
+	}
+
+	return nil
+}
