@@ -14,7 +14,7 @@ const PORT = ":8080"
 func main() {
 	log.Println("Запускаем сервис...")
 
-	dbURL := "postgres://myuser:mypassword@localhost:54320/order_service_db?sslmode=disable"
+	dbURL := "postgres://myuser:mypassword@db:5432/order_service_db?sslmode=disable"
 
 	db, err := storage.New(dbURL)
 	if err != nil {
