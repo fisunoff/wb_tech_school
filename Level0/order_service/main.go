@@ -17,7 +17,7 @@ import (
 	"order_service/handlers"
 	"order_service/storage"
 
-	gen "order_service/model"
+	"order_service/model"
 
 	"order_service/kafka"
 )
@@ -59,14 +59,7 @@ func main() {
 	topic := utils.Env("KAFKA_TOPIC", "orders")
 	if enableProducer {
 		ratePerSec := utils.MustAtoi(utils.Env("PRODUCER_RATE_PER_SECOND", "20"))
-
-		generator := func() (key []byte, value []byte, ts time.Time) {
-			order, _ := gen.NewFakeOrder()
-			jsonOrder, _ := json.Marshal(order)
-			return []byte(order.OrderUID), jsonOrder, order.DateCreated
-		}
-
-		go kafka.StartProducing(ctx, brokers, topic, ratePerSec, generator)
+		flyProducer(ctx, brokers, topic, ratePerSec)
 		log.Printf("Kafka producer: brokers=%v topic=%s rate=%d msg/s", brokers, topic, ratePerSec)
 	} else {
 		log.Print("Kafka producer выключен")
@@ -75,6 +68,7 @@ func main() {
 	enableConsumer := utils.Env("CONSUMER_ENABLED", "false") == "true"
 	if enableConsumer {
 		flyConsumer(ctx, brokers, topic, db)
+		log.Printf("Kafka consumer: brokers=%v topic=%s", brokers, topic)
 	} else {
 		log.Print("Kafka consumer выключен")
 	}
@@ -88,24 +82,36 @@ func main() {
 
 }
 
+func flyProducer(ctx context.Context, brokers []string, topic string, ratePerSec int) {
+	generator := func() (key []byte, value []byte, ts time.Time) {
+		order, _ := model.NewFakeOrder()
+		jsonOrder, _ := json.Marshal(order)
+		return []byte(order.OrderUID), jsonOrder, order.DateCreated
+	}
+
+	go kafka.StartProducing(ctx, brokers, topic, ratePerSec, generator)
+}
+
 func flyConsumer(ctx context.Context, brokers []string, topic string, db *storage.Storage) {
+	generator := func(ctx context.Context, key, value []byte, ts time.Time) error {
+		order, err := model.SerializeOrder(value)
+		if err != nil {
+			return err
+		}
+		err = db.SaveOrder(&order)
+		if err != nil {
+			return err
+		}
+		log.Printf("[consumer] получили order uid=%s key=%s ts=%s", order.OrderUID, string(key), ts)
+		return nil
+	}
+
 	go kafka.StartConsuming(
 		ctx,
 		kafka.NewReaderConfig(
 			brokers,
 			topic,
 		),
-		func(ctx context.Context, key, value []byte, ts time.Time) error {
-			order, err := gen.SerializeOrder(value)
-			if err != nil {
-				return err
-			}
-			err = db.SaveOrder(&order)
-			if err != nil {
-				return err
-			}
-			log.Printf("[consumer] получили order uid=%s key=%s ts=%s", order.OrderUID, string(key), ts)
-			return nil
-		},
+		generator,
 	)
 }
