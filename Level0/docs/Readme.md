@@ -5,3 +5,7 @@
 * POSTGRES_DB: order_service_db
 * POSTGRES_USER: myuser
 * POSTGRES_PASSWORD: mypassword
+
+Снаружи подключиться к Kafka по порту 9094.
+
+Включение/выключение отправки тестовых данных по переменной PRODUCER_ENABLED в docker-compose.
