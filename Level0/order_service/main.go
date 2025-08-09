@@ -55,9 +55,9 @@ func main() {
 	r.Get("/order/{order_uid}", orderHandler.GetByUID)
 
 	enableProducer := utils.Env("PRODUCER_ENABLED", "false") == "true"
+	brokers := utils.SplitAndTrim(utils.Env("KAFKA_BROKERS", "kafka:9092"))
+	topic := utils.Env("KAFKA_TOPIC", "orders")
 	if enableProducer {
-		brokers := utils.SplitAndTrim(utils.Env("KAFKA_BROKERS", "kafka:9092"))
-		topic := utils.Env("KAFKA_TOPIC", "orders")
 		ratePerSec := utils.MustAtoi(utils.Env("PRODUCER_RATE_PER_SECOND", "20"))
 
 		generator := func() (key []byte, value []byte, ts time.Time) {
@@ -72,6 +72,13 @@ func main() {
 		log.Print("Kafka producer выключен")
 	}
 
+	enableConsumer := utils.Env("CONSUMER_ENABLED", "false") == "true"
+	if enableConsumer {
+		flyConsumer(ctx, brokers, topic, db)
+	} else {
+		log.Print("Kafka consumer выключен")
+	}
+
 	err = http.ListenAndServe(PORT, r)
 	if err != nil {
 		log.Fatalf("не удалось запустить сервер: %v", err)
@@ -79,4 +86,26 @@ func main() {
 
 	log.Printf("Сервер запущен на порту %s", PORT)
 
+}
+
+func flyConsumer(ctx context.Context, brokers []string, topic string, db *storage.Storage) {
+	go kafka.StartConsuming(
+		ctx,
+		kafka.NewReaderConfig(
+			brokers,
+			topic,
+		),
+		func(ctx context.Context, key, value []byte, ts time.Time) error {
+			order, err := gen.SerializeOrder(value)
+			if err != nil {
+				return err
+			}
+			err = db.SaveOrder(&order)
+			if err != nil {
+				return err
+			}
+			log.Printf("[consumer] получили order uid=%s key=%s ts=%s", order.OrderUID, string(key), ts)
+			return nil
+		},
+	)
 }

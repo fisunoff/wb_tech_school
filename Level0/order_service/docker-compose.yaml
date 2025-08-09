@@ -66,6 +66,7 @@ services:
       - KAFKA_BROKERS=kafka:9092
       - KAFKA_TOPIC=orders
       - PRODUCER_ENABLED=true
+      - CONSUMER_ENABLED=true
       - PRODUCER_RATE_PER_SECOND=20
     ports:
       - "8080:8080"
