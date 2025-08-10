@@ -89,10 +89,16 @@ func flyHttpServer(db *storage.Storage) {
 }
 
 func flyProducer(ctx context.Context, brokers []string, topic string, ratePerSec int) {
-	generator := func() (key []byte, value []byte, ts time.Time) {
-		order, _ := model.NewFakeOrder()
+	generator := func() (key []byte, value []byte, ts time.Time, err error) {
+		order, err := model.NewFakeOrder()
+		if err != nil {
+			return nil, nil, time.Now(), err
+		}
 		jsonOrder, _ := json.Marshal(order)
-		return []byte(order.OrderUID), jsonOrder, order.DateCreated
+		if err != nil {
+			return nil, nil, time.Now(), err
+		}
+		return []byte(order.OrderUID), jsonOrder, order.DateCreated, nil
 	}
 
 	go kafka.StartProducing(ctx, brokers, topic, ratePerSec, generator)

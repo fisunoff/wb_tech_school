@@ -9,7 +9,7 @@ import (
 )
 
 // Generator должен вернуть ключ (для партиционирования), полезную нагрузку и timestamp сообщения.
-type Generator func() (key []byte, value []byte, ts time.Time)
+type Generator func() (key []byte, value []byte, ts time.Time, err error)
 
 // StartProducing запускает цикл отправки сообщений с частотой rate сообщений в секунду.
 func StartProducing(ctx context.Context, brokers []string, topic string, rate int, gen Generator) {
@@ -36,7 +36,10 @@ func StartProducing(ctx context.Context, brokers []string, topic string, rate in
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			key, val, ts := gen()
+			key, val, ts, err := gen()
+			if err != nil {
+				log.Printf("Ошибка при создании данных: %v", err)
+			}
 			msg := kafka.Message{
 				Key:   key,
 				Value: val,
