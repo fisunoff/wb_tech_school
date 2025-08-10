@@ -10,6 +10,8 @@ import (
 	"order_service/model"
 )
 
+const DefaultCacheSize = 1000
+
 type Storage struct {
 	db    *sqlx.DB
 	cache map[string]*model.Order
@@ -21,10 +23,18 @@ func New(connStr string) (*Storage, error) {
 	if err != nil {
 		return nil, fmt.Errorf("не удалось подключиться к базе данных: %w", err)
 	}
-	return &Storage{
+	storage := &Storage{
 		db:    db,
 		cache: make(map[string]*model.Order),
-	}, nil
+	}
+	orders, err := storage.GetTopNewestOrders(DefaultCacheSize)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка при заполнении кэша: %w", err)
+	}
+	for _, order := range orders {
+		storage.cache[order.OrderUID] = order
+	}
+	return storage, nil
 }
 
 // Close - корректно закрывает соединение с базой данных.
@@ -162,4 +172,44 @@ func (s *Storage) GetOrderByUID(orderUID string) (*model.Order, error) {
 	s.cache[orderUID] = order
 
 	return order, nil
+}
+
+func (s *Storage) GetTopNewestOrders(quantity int) ([]*model.Order, error) {
+	sqlQuery := `
+        SELECT
+            o.*, d.*, p.*,
+            COALESCE(
+              (SELECT json_agg(i) FROM items i WHERE i.order_uid = o.order_uid),
+              '[]'::json
+            ) AS items_json
+        FROM orders AS o
+        LEFT JOIN deliveries AS d ON o.order_uid = d.order_uid
+        LEFT JOIN payments AS p ON o.order_uid = p.order_uid
+        ORDER BY date_created DESC
+        LIMIT $1`
+
+	results := make([]orderQueryResult, quantity)
+	if err := s.db.Select(&results, sqlQuery, quantity); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("ошибка запроса к БД: %w", err)
+	}
+
+	var items []model.Item
+	orders := make([]*model.Order, len(results))
+
+	for i := range results {
+		result := results[i]
+		if err := json.Unmarshal(result.ItemsJSON, &items); err != nil {
+			return nil, fmt.Errorf("ошибка распаковки JSON для товаров: %w", err)
+		}
+
+		order := &result.Order
+		order.Delivery = result.Delivery
+		order.Payment = result.Payment
+		order.Items = items
+		orders[i] = order
+	}
+	return orders, nil
 }

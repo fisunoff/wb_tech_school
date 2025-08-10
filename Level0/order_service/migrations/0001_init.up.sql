@@ -62,3 +62,5 @@ ALTER TABLE "payments" ADD FOREIGN KEY ("order_uid") REFERENCES "orders" ("order
 ALTER TABLE "items" ADD FOREIGN KEY ("order_uid") REFERENCES "orders" ("order_uid") ON DELETE CASCADE;
 
 CREATE INDEX ON "items" ("order_uid");
+
+CREATE INDEX orders_date_created_idx ON "orders" USING btree (date_created);
