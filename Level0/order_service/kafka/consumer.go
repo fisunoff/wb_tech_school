@@ -12,7 +12,8 @@ const COMMIT_ON_ERROR = false // коммитить не надо, если ош
 const ORDER_CONSUMER = "order-service-consumer"
 
 // Handler — функция обработки сообщения.
-type Handler func(ctx context.Context, key, value []byte, ts time.Time) error
+// passOnDecodeError - пропускать при ошибке преобразования в структуру (не валить ошибку)
+type Handler func(ctx context.Context, key, value []byte, ts time.Time, passOnDecodeError bool) error
 
 func NewReaderConfig(Brokers []string, Topic string) *kafka.ReaderConfig {
 	return &kafka.ReaderConfig{
@@ -45,7 +46,7 @@ func StartConsuming(ctx context.Context, cfg *kafka.ReaderConfig, handler Handle
 			log.Printf("[consumer] Ошибка при получении сообщения: %v", err.Error())
 			return
 		}
-		if err := handler(ctx, msg.Key, msg.Value, msg.Time); err != nil {
+		if err := handler(ctx, msg.Key, msg.Value, msg.Time, true); err != nil {
 			log.Printf("[consumer] Ошибка обработчика: %v", err)
 			if COMMIT_ON_ERROR {
 				if cerr := reader.CommitMessages(ctx, msg); cerr != nil && ctx.Err() == nil {
