@@ -78,6 +78,10 @@ func flyHttpServer(db *storage.Storage) {
 	router.Use(middleware.Recoverer)
 
 	router.Get("/order/{order_uid}", orderHandler.GetByUID)
+
+	fs := http.FileServer(http.Dir("./static"))
+	router.Handle("/*", http.StripPrefix("/", fs))
+
 	err := http.ListenAndServe(PORT, router)
 	if err != nil {
 		log.Fatalf("не удалось запустить сервер: %v", err)

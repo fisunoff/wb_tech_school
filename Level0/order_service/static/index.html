@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Поиск заказа</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<main class="container">
+    <h1>Поиск заказа по UID</h1>
+
+    <form id="searchForm" class="search-form">
+        <input
+                type="text"
+                id="orderUidInput"
+                placeholder="Введите UID заказа"
+                required
+        >
+        <button type="submit" id="findButton">Найти</button>
+    </form>
+
+    <div id="resultContainer" class="result-container">
+        <!-- Сюда будет выводиться результат или ошибка -->
+        <pre id="jsonOutput" class="json-output"></pre>
+        <p id="errorMessage" class="error-message"></p>
+    </div>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
