@@ -7,7 +7,6 @@ import (
 )
 
 func NewFakeOrder() (Order, error) {
-	// По-хорошему seed делать один раз в init/main, но оставлю как было
 	err := gofakeit.Seed(time.Now().UnixNano())
 	if err != nil {
 		return Order{}, err

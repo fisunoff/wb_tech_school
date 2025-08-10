@@ -8,8 +8,8 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-const COMMIT_ON_ERROR = false // коммитить не надо, если ошибка
-const ORDER_CONSUMER = "order-service-consumer"
+const CommitOnError = false // коммитить не надо, если ошибка
+const OrderConsumer = "order-service-consumer"
 
 // Handler — функция обработки сообщения.
 // passOnDecodeError - пропускать при ошибке преобразования в структуру (не валить ошибку)
@@ -19,7 +19,7 @@ func NewReaderConfig(Brokers []string, Topic string) *kafka.ReaderConfig {
 	return &kafka.ReaderConfig{
 		Brokers:  Brokers,
 		Topic:    Topic,
-		GroupID:  ORDER_CONSUMER,
+		GroupID:  OrderConsumer,
 		MinBytes: 1 << 10,  // 1KB
 		MaxBytes: 10 << 20, // 10MB
 		MaxWait:  250 * time.Millisecond,
@@ -48,7 +48,7 @@ func StartConsuming(ctx context.Context, cfg *kafka.ReaderConfig, handler Handle
 		}
 		if err := handler(ctx, msg.Key, msg.Value, msg.Time, true); err != nil {
 			log.Printf("[consumer] Ошибка обработчика: %v", err)
-			if COMMIT_ON_ERROR {
+			if CommitOnError {
 				if cerr := reader.CommitMessages(ctx, msg); cerr != nil && ctx.Err() == nil {
 					log.Printf("[consumer] Ошибка после коммита: %v", cerr)
 				}
