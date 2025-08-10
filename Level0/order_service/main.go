@@ -44,15 +44,7 @@ func main() {
 		}
 	}(db)
 
-	orderHandler := &handlers.OrderHandler{
-		DB: db,
-	}
-
-	r := chi.NewRouter()
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
-
-	r.Get("/order/{order_uid}", orderHandler.GetByUID)
+	go flyHttpServer(db)
 
 	enableProducer := utils.Env("PRODUCER_ENABLED", "false") == "true"
 	brokers := utils.SplitAndTrim(utils.Env("KAFKA_BROKERS", "kafka:9092"))
@@ -73,13 +65,23 @@ func main() {
 		log.Print("Kafka consumer выключен")
 	}
 
-	err = http.ListenAndServe(PORT, r)
+	<-ctx.Done()
+}
+
+func flyHttpServer(db *storage.Storage) {
+	orderHandler := &handlers.OrderHandler{
+		DB: db,
+	}
+
+	router := chi.NewRouter()
+	router.Use(middleware.Logger)
+	router.Use(middleware.Recoverer)
+
+	router.Get("/order/{order_uid}", orderHandler.GetByUID)
+	err := http.ListenAndServe(PORT, router)
 	if err != nil {
 		log.Fatalf("не удалось запустить сервер: %v", err)
 	}
-
-	log.Printf("Сервер запущен на порту %s", PORT)
-
 }
 
 func flyProducer(ctx context.Context, brokers []string, topic string, ratePerSec int) {
