@@ -22,6 +22,8 @@ func StartProducing(ctx context.Context, brokers []string, topic string, rate in
 		Topic:                  topic,
 		Balancer:               &kafka.Hash{},
 		AllowAutoTopicCreation: true,
+		Async:                  true,
+		ErrorLogger:            kafka.LoggerFunc(log.Printf),
 	}
 	defer func() {
 		if err := writer.Close(); err != nil {
@@ -43,6 +45,7 @@ func StartProducing(ctx context.Context, brokers []string, topic string, rate in
 			if err := writer.WriteMessages(ctx, msg); err != nil {
 				log.Printf("[producer] Ошибка записи в Kafka: %v", err)
 			}
+			log.Println("[producer] +1 запись в Kafka")
 		}
 	}
 }
