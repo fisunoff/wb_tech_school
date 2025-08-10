@@ -17,13 +17,21 @@ import (
 	"order_service/handlers"
 	"order_service/storage"
 
-	"order_service/model"
+	httpSwagger "github.com/swaggo/http-swagger"
 
+	_ "order_service/docs"
 	"order_service/kafka"
+	"order_service/model"
 )
 
 const PORT = ":8080"
 
+// @title           Order Service API
+// @version         1.0
+// @description     Это API для сервиса заказов.
+
+// @host      localhost:8080
+// @BasePath  /
 func main() {
 	log.Println("Запускаем сервис...")
 
@@ -79,6 +87,10 @@ func flyHttpServer(db *storage.Storage) {
 
 	router.Get("/order/{order_uid}", orderHandler.GetByUID)
 
+	// docs
+	router.Get("/swagger/*", httpSwagger.WrapHandler)
+
+	// frontend
 	fs := http.FileServer(http.Dir("./static"))
 	router.Handle("/*", http.StripPrefix("/", fs))
 

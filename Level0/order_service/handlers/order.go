@@ -16,6 +16,17 @@ type OrderHandler struct {
 }
 
 // GetByUID - обработчик для GET /order/{order_uid}.
+//
+// @Summary      Получить заказ по UID
+// @Description  Выдает полную информацию о заказе по UID
+// @Tags         orders
+// @Accept       json
+// @Produce      json
+// @Param        order_uid   path      string  true  "UID Заказа"
+// @Success      200  {object}  model.Order
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /order/{order_uid} [get]
 func (h *OrderHandler) GetByUID(w http.ResponseWriter, r *http.Request) {
 	orderUID := chi.URLParam(r, "order_uid")
 	if orderUID == "" {
