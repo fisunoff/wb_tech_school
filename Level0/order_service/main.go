@@ -38,7 +38,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	dbURL := "postgres://myuser:mypassword@db:5432/order_service_db?sslmode=disable"
+	dbURL := utils.Env("DB_URL", "")
 
 	db, err := storage.New(dbURL)
 	if err != nil {
