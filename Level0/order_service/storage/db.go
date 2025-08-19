@@ -10,38 +10,45 @@ import (
 	"order_service/model"
 )
 
-var defaultCacheSizeError = errors.New("defaultCacheSize must be greater than zero")
-var startCacheSizeError = errors.New("startCacheSize must be greater than zero")
-
 type Storage struct {
 	db    *sqlx.DB
-	cache map[string]*model.Order
+	cache *LRUCache
 }
 
 // New - подключение к базе.
 func New(connStr string, defaultCacheSize int, startCacheSize int) (*Storage, error) {
-	if defaultCacheSize < 1 {
-		return nil, defaultCacheSizeError
-	}
-	if startCacheSize < 1 {
+	if startCacheSize < 0 {
 		return nil, startCacheSizeError
+	}
+	if startCacheSize > defaultCacheSize {
+		return nil, startMustBeGteDefaultSizeError
+	}
+
+	cache, err := NewLRUCache(defaultCacheSize)
+	if err != nil {
+		return nil, err
 	}
 
 	db, err := sqlx.Connect("pgx", connStr)
 	if err != nil {
 		return nil, fmt.Errorf("не удалось подключиться к базе данных: %w", err)
 	}
+
 	storage := &Storage{
 		db:    db,
-		cache: make(map[string]*model.Order),
+		cache: cache,
 	}
-	orders, err := storage.GetTopNewestOrders(startCacheSize)
-	if err != nil {
-		return nil, fmt.Errorf("ошибка при заполнении кэша: %w", err)
+
+	if startCacheSize > 0 { // при 0 заполнять не нужно
+		orders, err := storage.GetTopNewestOrders(startCacheSize)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка при заполнении кэша: %w", err)
+		}
+		for _, order := range orders {
+			storage.cache.Put(order.OrderUID, order)
+		}
 	}
-	for _, order := range orders {
-		storage.cache[order.OrderUID] = order
-	}
+
 	return storage, nil
 }
 
@@ -142,7 +149,7 @@ type orderQueryResult struct {
 
 // GetOrderByUID - получить заказ и связанные данные по uid.
 func (s *Storage) GetOrderByUID(orderUID string) (*model.Order, error) {
-	val, ok := s.cache[orderUID]
+	val, ok := s.cache.Get(orderUID)
 	if ok {
 		return val, nil
 	}
@@ -177,7 +184,7 @@ func (s *Storage) GetOrderByUID(orderUID string) (*model.Order, error) {
 	order.Payment = result.Payment
 	order.Items = items
 
-	s.cache[orderUID] = order
+	s.cache.Put(orderUID, order)
 
 	return order, nil
 }
