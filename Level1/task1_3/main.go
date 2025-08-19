@@ -4,8 +4,11 @@ import (
 	"flag"
 	"fmt"
 	"math/rand"
+	"os"
+	"os/signal"
 	"runtime"
 	"sync"
+	"syscall"
 )
 
 func work(jobs <-chan int, wg *sync.WaitGroup) {
@@ -17,6 +20,10 @@ func work(jobs <-chan int, wg *sync.WaitGroup) {
 }
 
 func main() {
+	sigChan := make(chan os.Signal, 1)
+
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM) // SIGTERM не просили, но добавил чтобы всегда корректно завершалось
+
 	workerCountPtr := flag.Int("workers", runtime.NumCPU(), "Количество горутин-воркеров для запуска")
 	flag.Parse()
 	workerCount := *workerCountPtr
@@ -31,7 +38,13 @@ func main() {
 		go work(input, &wg)
 	}
 
-	for {
-		input <- rand.Int()
-	}
+	go func() {
+		for {
+			input <- rand.Int()
+		}
+	}()
+
+	<-sigChan
+	close(input)
+	fmt.Print("Получен сигнал завершения. Закрываемся.")
 }
