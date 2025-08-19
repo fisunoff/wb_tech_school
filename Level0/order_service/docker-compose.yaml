@@ -68,6 +68,8 @@ services:
       - PRODUCER_ENABLED=true
       - CONSUMER_ENABLED=true
       - PRODUCER_RATE_PER_SECOND=20
+      - MAX_CACHE_SIZE=10000
+      - START_CACHE_SIZE=1000
       - DB_URL=postgres://myuser:mypassword@db:5432/order_service_db?sslmode=disable
     ports:
       - "8080:8080"

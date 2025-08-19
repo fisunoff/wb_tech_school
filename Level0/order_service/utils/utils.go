@@ -8,11 +8,11 @@ import (
 )
 
 // Env - получить данные из окружения
-func Env(k, d string) string {
+func Env(k, defaultValue string) string {
 	if v := os.Getenv(k); v != "" {
 		return v
 	}
-	return d
+	return defaultValue
 }
 
 // MustAtoi - привести к числу

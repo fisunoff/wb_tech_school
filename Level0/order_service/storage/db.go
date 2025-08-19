@@ -10,7 +10,8 @@ import (
 	"order_service/model"
 )
 
-const DefaultCacheSize = 1000
+var defaultCacheSizeError = errors.New("defaultCacheSize must be greater than zero")
+var startCacheSizeError = errors.New("startCacheSize must be greater than zero")
 
 type Storage struct {
 	db    *sqlx.DB
@@ -18,7 +19,14 @@ type Storage struct {
 }
 
 // New - подключение к базе.
-func New(connStr string) (*Storage, error) {
+func New(connStr string, defaultCacheSize int, startCacheSize int) (*Storage, error) {
+	if defaultCacheSize < 1 {
+		return nil, defaultCacheSizeError
+	}
+	if startCacheSize < 1 {
+		return nil, startCacheSizeError
+	}
+
 	db, err := sqlx.Connect("pgx", connStr)
 	if err != nil {
 		return nil, fmt.Errorf("не удалось подключиться к базе данных: %w", err)
@@ -27,7 +35,7 @@ func New(connStr string) (*Storage, error) {
 		db:    db,
 		cache: make(map[string]*model.Order),
 	}
-	orders, err := storage.GetTopNewestOrders(DefaultCacheSize)
+	orders, err := storage.GetTopNewestOrders(startCacheSize)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка при заполнении кэша: %w", err)
 	}

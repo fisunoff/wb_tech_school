@@ -40,7 +40,13 @@ func main() {
 
 	dbURL := utils.Env("DB_URL", "")
 
-	db, err := storage.New(dbURL)
+	maxCacheSizeString := utils.Env("MAX_CACHE_SIZE", "5000")
+	maxCacheSize := utils.MustAtoi(maxCacheSizeString)
+
+	startCacheSizeString := utils.Env("START_CACHE_SIZE", "1000")
+	startCacheSize := utils.MustAtoi(startCacheSizeString)
+
+	db, err := storage.New(dbURL, maxCacheSize, startCacheSize)
 	if err != nil {
 		log.Fatalf("Не удалось инициализировать БД: %v", err)
 	}
