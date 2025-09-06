@@ -5,15 +5,15 @@ services:
     image: postgres:16
     restart: always
     environment:
-      POSTGRES_DB: order_service_db
-      POSTGRES_USER: myuser
-      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "54320:5432"
+      - "${DB_EXTERNAL_PORT}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U myuser -d order_service_db || exit 1" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} || exit 1" ]
       interval: 2s
       timeout: 5s
       retries: 30
@@ -28,7 +28,7 @@ services:
       - ./migrations:/migrations
     entrypoint: [
       "sh", "-c",
-      "sleep 5 && migrate -source=file:///migrations -database=postgres://myuser:mypassword@db:5432/order_service_db?sslmode=disable up"
+      "sleep 5 && migrate -source=file:///migrations -database=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable up"
     ]
 
   kafka:
@@ -64,13 +64,13 @@ services:
       dockerfile: Dockerfile
     environment:
       - KAFKA_BROKERS=kafka:9092
-      - KAFKA_TOPIC=orders
-      - PRODUCER_ENABLED=true
-      - CONSUMER_ENABLED=true
-      - PRODUCER_RATE_PER_SECOND=20
-      - MAX_CACHE_SIZE=10000
-      - START_CACHE_SIZE=1000
-      - DB_URL=postgres://myuser:mypassword@db:5432/order_service_db?sslmode=disable
+      - KAFKA_TOPIC=${KAFKA_TOPIC}
+      - PRODUCER_ENABLED=${PRODUCER_ENABLED}
+      - CONSUMER_ENABLED=${CONSUMER_ENABLED}
+      - PRODUCER_RATE_PER_SECOND=${PRODUCER_RATE_PER_SECOND}
+      - MAX_CACHE_SIZE=${MAX_CACHE_SIZE}
+      - START_CACHE_SIZE=${START_CACHE_SIZE}
+      - DB_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable
     ports:
       - "8080:8080"
     depends_on:
