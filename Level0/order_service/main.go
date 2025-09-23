@@ -123,29 +123,13 @@ func flyProducer(ctx context.Context, brokers []string, topic string, ratePerSec
 }
 
 func flyConsumer(ctx context.Context, brokers []string, topic string, db *storage.Storage) {
-	generator := func(ctx context.Context, key, value []byte, ts time.Time, passOnDecodeError bool) error {
-		order, err := model.SerializeOrder(value)
-		if err != nil {
-			if passOnDecodeError { // не получилось - ну и не надо
-				log.Println("Пропустили некорректную запись из Kafka")
-				return nil
-			}
-			return err
-		}
-		err = db.SaveOrder(&order)
-		if err != nil {
-			return err
-		}
-		log.Printf("[consumer] получили order uid=%s key=%s ts=%s", order.OrderUID, string(key), ts)
-		return nil
-	}
-
 	go kafka.StartConsuming(
 		ctx,
 		kafka.NewReaderConfig(
 			brokers,
 			topic,
 		),
-		generator,
+		db,
+		brokers,
 	)
 }
