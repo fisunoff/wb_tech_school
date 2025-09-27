@@ -17,5 +17,8 @@ docker compose up --build
 
 Включение / выключение получения тестовых данных - CONSUMER_ENABLED.
 
+Для сообщений, которые не удалось корректно обработать, заведена DLQ "dead-orders".
 
 Документация на API: http://localhost:8080/swagger/index.html
+
+Веб-интерфес: http://localhost:8081/order

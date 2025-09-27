@@ -65,19 +65,19 @@ type Item struct {
 	Status      int    `json:"status" db:"status" fake:"{number:100,300}" validate:"required,gt=0"`
 }
 
-// SerializeOrder десериализует JSON и проверяет его валидность
-func SerializeOrder(orderRawData []byte) (Order, error) {
+// ParseOrderFromJSON десериализует JSON и проверяет его валидность
+func ParseOrderFromJSON(orderRawData []byte) (*Order, error) {
 	var order Order
 	err := json.Unmarshal(orderRawData, &order)
 	if err != nil {
-		return order, err
+		return nil, err
 	}
 
 	validate := validator.New()
 	err = validate.Struct(order)
 	if err != nil {
-		return order, err
+		return nil, err
 	}
 
-	return order, nil
+	return &order, nil
 }

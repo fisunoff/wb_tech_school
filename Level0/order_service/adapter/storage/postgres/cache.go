@@ -1,9 +1,9 @@
-package storage
+package postgres
 
 import (
 	"container/list"
 	"errors"
-	"order_service/model"
+	"order_service/internal/model"
 	"sync"
 )
 

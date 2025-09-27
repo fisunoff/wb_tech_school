@@ -2,9 +2,10 @@ package kafka
 
 import (
 	"context"
+	"fmt"
 	"log"
-	"order_service/interfaces"
-	"order_service/model"
+	"order_service/internal/repository"
+	"order_service/internal/usecase"
 	"time"
 
 	"github.com/segmentio/kafka-go"
@@ -28,12 +29,12 @@ func NewReaderConfig(Brokers []string, Topic string) *kafka.ReaderConfig {
 	}
 }
 
-// StartConsuming - получать сообщения из топика и обрабатывать их через handler
+// StartConsuming - получать сообщения из топика и обрабатывать их
 func StartConsuming(
 	ctx context.Context,
 	cfg *kafka.ReaderConfig,
-	db interfaces.DatabaseInterface,
-	dlqBrokers []string,
+	useCase *usecase.OrderCreateUseCase,
+	dlqHandler repository.DeadLetterQueue,
 ) {
 	reader := kafka.NewReader(*cfg)
 	defer func() {
@@ -44,57 +45,49 @@ func StartConsuming(
 
 	log.Printf("[consumer]: brokers=%v topic=%s group=%s", cfg.Brokers, cfg.Topic, cfg.GroupID)
 
-	dlqHandler := newDlqProducer(dlqBrokers)
-
 	for {
 		msg, err := reader.FetchMessage(ctx)
 		if err != nil {
 			if ctx.Err() != nil {
 				return
 			}
-			log.Printf("[consumer] Ошибка при получении сообщения: %v", err.Error())
+			log.Printf("[consumer] Ошибка при получении сообщения: %v", err)
 			return
 		}
-		if err = baseHandler(ctx, msg.Key, msg.Value, msg.Time, true, db, dlqHandler); err != nil {
-			log.Printf("[consumer] Ошибка обработчика: %v", err)
-			if CommitOnError {
-				if cerr := reader.CommitMessages(ctx, msg); cerr != nil && ctx.Err() == nil {
-					log.Printf("[consumer] Ошибка после коммита: %v", cerr)
-				}
+
+		err = handleMessage(ctx, msg.Key, msg.Value, msg.Time, true, useCase, dlqHandler)
+		if err != nil {
+			log.Printf("[consumer] Ошибка обработки сообщения: %v", err)
+			if !CommitOnError {
+				continue
 			}
-			continue
 		}
 
 		if err = reader.CommitMessages(ctx, msg); err != nil && ctx.Err() == nil {
 			log.Printf("[consumer] Ошибка при коммите: %v", err)
 		}
 	}
-
 }
 
-func baseHandler(
+func handleMessage(
 	ctx context.Context,
 	key, value []byte,
 	ts time.Time,
 	passOnDecodeError bool,
-	db interfaces.DatabaseInterface,
-	dlqHandler *dlqProducer,
+	useCase *usecase.OrderCreateUseCase,
+	dlqHandler repository.DeadLetterQueue,
 ) error {
-	order, err := model.SerializeOrder(value)
+	err := useCase.CreateOrderFromRaw(ctx, value)
 	if err != nil {
 		if passOnDecodeError { // не получилось - перемещаем в DLQ
-			err = dlqHandler.HandleMessage(ctx, value)
-			if err != nil {
-				return err
+			if dlqErr := dlqHandler.Send(ctx, value); dlqErr != nil {
+				return fmt.Errorf("не удалось отправить в DLQ: %w", dlqErr)
 			}
 			return nil
 		}
 		return err
 	}
-	err = db.SaveOrder(&order)
-	if err != nil {
-		return err
-	}
-	log.Printf("[consumer] получили order uid=%s key=%s ts=%s", order.OrderUID, string(key), ts)
+
+	log.Printf("[consumer] заказ сохранён, key=%s, ts=%s", string(key), ts)
 	return nil
 }

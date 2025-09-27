@@ -1,18 +1,20 @@
-package handlers
+package http
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
+	"github.com/go-chi/chi/v5"
 	"log"
 	"net/http"
-	"order_service/storage"
-
-	"github.com/go-chi/chi/v5"
+	"order_service/internal/usecase"
 )
 
 type OrderHandler struct {
-	DB *storage.Storage
+	useCase *usecase.OrderUseCase
+}
+
+func NewOrderHandler(useCase *usecase.OrderUseCase) *OrderHandler {
+	return &OrderHandler{useCase}
 }
 
 // GetByUID - обработчик для GET /order/{order_uid}.
@@ -29,21 +31,20 @@ type OrderHandler struct {
 // @Router       /order/{order_uid} [get]
 func (h *OrderHandler) GetByUID(w http.ResponseWriter, r *http.Request) {
 	orderUID := chi.URLParam(r, "order_uid")
-	if orderUID == "" {
-		http.Error(w, "Пустой uid", http.StatusBadRequest)
-		return
-	}
 
-	order, err := h.DB.GetOrderByUID(orderUID)
-
+	order, err := h.useCase.GetOrderByUID(orderUID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			http.Error(w, "Заказ не найден", http.StatusNotFound)
+		switch {
+		case errors.Is(err, usecase.ErrEmptyUid):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		case errors.Is(err, usecase.ErrOrderNotFound):
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		default:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		log.Printf("Ошибка при попытке получить заказ %s: %v", orderUID, err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

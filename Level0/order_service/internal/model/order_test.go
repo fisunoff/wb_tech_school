@@ -16,33 +16,33 @@ func readTestData(t *testing.T, filename string) []byte {
 	return data
 }
 
-func TestSerializeOrderPositive(t *testing.T) {
+func TestParseOrderFromJSONPositive(t *testing.T) {
 	correctData := readTestData(t, "valid_order.json")
-	_, err := SerializeOrder(correctData)
+	_, err := ParseOrderFromJSON(correctData)
 	if err != nil {
 		t.Error(err.Error())
 	}
 }
 
-func TestSerializeOrderInvalidSyntax(t *testing.T) {
+func TestParseOrderFromJSONInvalidSyntax(t *testing.T) {
 	correctData := readTestData(t, "invalid_syntax.json")
-	_, err := SerializeOrder(correctData)
+	_, err := ParseOrderFromJSON(correctData)
 	if err == nil {
 		t.Error("Ожидалась ошибка, но ее нет")
 	}
 }
 
-func TestSerializeOrderInvalidType(t *testing.T) {
+func TestParseOrderFromJSONInvalidType(t *testing.T) {
 	correctData := readTestData(t, "invalid_type.json")
-	_, err := SerializeOrder(correctData)
+	_, err := ParseOrderFromJSON(correctData)
 	if err == nil {
 		t.Error("Ожидалась ошибка, но ее нет")
 	}
 }
 
-func TestSerializeOrderInvalidEmail(t *testing.T) {
+func TestParseOrderFromJSONInvalidEmail(t *testing.T) {
 	data := readTestData(t, "invalid_email.json")
-	_, err := SerializeOrder(data)
+	_, err := ParseOrderFromJSON(data)
 	if err == nil {
 		t.Error("Ожидалась ошибка, но ее нет")
 	}

@@ -6,10 +6,10 @@ import (
 	"github.com/brianvoe/gofakeit/v7"
 )
 
-func NewFakeOrder() (Order, error) {
+func NewFakeOrder() (*Order, error) {
 	err := gofakeit.Seed(time.Now().UnixNano())
 	if err != nil {
-		return Order{}, err
+		return nil, err
 	}
 
 	n := gofakeit.Number(1, 50)
@@ -19,10 +19,10 @@ func NewFakeOrder() (Order, error) {
 
 	err = gofakeit.Struct(&o)
 	if err != nil {
-		return Order{}, err
+		return nil, err
 	}
 	postProcessOrder(&o)
-	return o, nil
+	return &o, nil
 }
 
 func postProcessOrder(o *Order) {

@@ -5,6 +5,12 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	httpDelivery "order_service/adapter/delivery/http"
+	kafkaDelivery "order_service/adapter/delivery/kafka"
+	kafkaDLQ "order_service/adapter/dlq/kafka"
+	kafkaProducer "order_service/adapter/outbox/kafka"
+	"order_service/adapter/storage/postgres"
+	"order_service/internal/usecase"
 	"order_service/utils"
 	"os"
 	"os/signal"
@@ -14,14 +20,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"order_service/handlers"
-	"order_service/storage"
+	_ "order_service/docs"
+	"order_service/internal/model"
 
 	httpSwagger "github.com/swaggo/http-swagger"
-
-	_ "order_service/docs"
-	"order_service/kafka"
-	"order_service/model"
 )
 
 const PORT = ":8080"
@@ -46,12 +48,12 @@ func main() {
 	startCacheSizeString := utils.Env("START_CACHE_SIZE", "1000")
 	startCacheSize := utils.MustAtoi(startCacheSizeString)
 
-	db, err := storage.New(dbURL, maxCacheSize, startCacheSize)
+	db, err := postgres.New(dbURL, maxCacheSize, startCacheSize)
 	if err != nil {
 		log.Fatalf("Не удалось инициализировать БД: %v", err)
 	}
 
-	defer func(db *storage.Storage) {
+	defer func(db *postgres.Storage) {
 		err := db.Close()
 		if err != nil {
 			log.Fatalf("Не удалось закрыть подключение к БД: %v", err)
@@ -82,10 +84,10 @@ func main() {
 	<-ctx.Done()
 }
 
-func flyHttpServer(db *storage.Storage) {
-	orderHandler := &handlers.OrderHandler{
-		DB: db,
-	}
+func flyHttpServer(db *postgres.Storage) {
+	orderHandler := httpDelivery.NewOrderHandler(
+		usecase.NewOrderUseCase(db),
+	)
 
 	router := chi.NewRouter()
 	router.Use(middleware.Logger)
@@ -112,24 +114,29 @@ func flyProducer(ctx context.Context, brokers []string, topic string, ratePerSec
 		if err != nil {
 			return nil, nil, time.Now(), err
 		}
-		jsonOrder, _ := json.Marshal(order)
+		jsonOrder, err := json.Marshal(order)
 		if err != nil {
 			return nil, nil, time.Now(), err
 		}
 		return []byte(order.OrderUID), jsonOrder, order.DateCreated, nil
 	}
 
-	go kafka.StartProducing(ctx, brokers, topic, ratePerSec, generator)
+	go kafkaProducer.StartProducing(ctx, brokers, topic, ratePerSec, generator)
 }
 
-func flyConsumer(ctx context.Context, brokers []string, topic string, db *storage.Storage) {
-	go kafka.StartConsuming(
-		ctx,
-		kafka.NewReaderConfig(
-			brokers,
-			topic,
-		),
-		db,
-		brokers,
-	)
+func flyConsumer(ctx context.Context, brokers []string, topic string, db *postgres.Storage) {
+	dlqHandler := kafkaDLQ.NewKafkaDLQ(brokers)
+	useCase := usecase.NewOrderCreateUseCase(db)
+	go func() {
+		defer dlqHandler.Close()
+		kafkaDelivery.StartConsuming(
+			ctx,
+			kafkaDelivery.NewReaderConfig(
+				brokers,
+				topic,
+			),
+			useCase,
+			dlqHandler,
+		)
+	}()
 }

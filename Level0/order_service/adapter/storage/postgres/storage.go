@@ -1,15 +1,18 @@
-package storage
+package postgres
 
 import (
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"order_service/model"
+	"order_service/internal/model"
+	"order_service/internal/repository"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
 )
+
+var _ repository.OrderRepository = (*Storage)(nil)
 
 type Storage struct {
 	db    *sqlx.DB
@@ -41,7 +44,7 @@ func New(connStr string, defaultCacheSize int, startCacheSize int) (*Storage, er
 	}
 
 	if startCacheSize > 0 { // при 0 заполнять не нужно
-		orders, err := storage.GetTopNewestOrders(startCacheSize)
+		orders, err := storage.FindTopNewest(startCacheSize)
 		if err != nil {
 			return nil, fmt.Errorf("ошибка при заполнении кэша: %w", err)
 		}
@@ -62,8 +65,8 @@ func (s *Storage) GetDb() *sqlx.DB {
 	return s.db
 }
 
-// SaveOrder - сохранить заказ целиком или ничего.
-func (s *Storage) SaveOrder(order *model.Order) error {
+// Save - сохранить заказ целиком или ничего.
+func (s *Storage) Save(order *model.Order) error {
 	// 1. Начинаем транзакцию.
 	tx, err := s.db.Beginx()
 	if err != nil {
@@ -148,8 +151,8 @@ type orderQueryResult struct {
 	ItemsJSON []byte `db:"items_json"`
 }
 
-// GetOrderByUID - получить заказ и связанные данные по uid.
-func (s *Storage) GetOrderByUID(orderUID string) (*model.Order, error) {
+// FindByUID - получить заказ и связанные данные по uid.
+func (s *Storage) FindByUID(orderUID string) (*model.Order, error) {
 	val, ok := s.cache.Get(orderUID)
 	if ok {
 		return val, nil
@@ -170,7 +173,7 @@ func (s *Storage) GetOrderByUID(orderUID string) (*model.Order, error) {
 	var result orderQueryResult
 	if err := s.db.Get(&result, sqlQuery, orderUID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, err
+			return nil, repository.ErrNotFound
 		}
 		return nil, fmt.Errorf("ошибка запроса к БД: %w", err)
 	}
@@ -190,7 +193,7 @@ func (s *Storage) GetOrderByUID(orderUID string) (*model.Order, error) {
 	return order, nil
 }
 
-func (s *Storage) GetTopNewestOrders(quantity int) ([]*model.Order, error) {
+func (s *Storage) FindTopNewest(quantity int) ([]*model.Order, error) {
 	sqlQuery := `
         SELECT
             o.*, d.*, p.*,
