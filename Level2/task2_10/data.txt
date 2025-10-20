@@ -1,0 +1,6 @@
+alpha	100	Mar
+gamma	20	Jan
+beta	3000	Feb
+alpha	100	Mar
+delta	5K	Dec
+zeta	1M	Jul
